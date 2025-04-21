@@ -1,74 +1,125 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, Button, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import axios from 'axios';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+type Item = {
+  id: number;
+  nombre: string;
+};
 
-export default function HomeScreen() {
+const API_URL = 'http://192.168.1.28:3000/items'; // reemplaza <TU_IP_LOCAL> por tu IP
+
+export default function App() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [nombre, setNombre] = useState('');
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [error, setError] = useState('');
+  const [mostrarError, setMostrarError] = useState(false);
+
+  const cargarItems = async () => {
+    const res = await axios.get(API_URL);
+    setItems(res.data);
+  };
+
+  useEffect(() => {
+    cargarItems();
+  }, []);
+
+  const guardarItem = async () => {
+    if (!nombre.trim()) return;
+  
+    try {
+      if (editandoId) {
+        await axios.put(`${API_URL}/${editandoId}`, { nombre });
+      } else {
+        await axios.post(API_URL, { nombre });
+      }
+  
+      setNombre('');
+      setEditandoId(null);
+      cargarItems();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Error desconocido');
+      console.error(err);
+      setMostrarError(true);
+    }
+  };
+
+  const eliminarItem = async (id: number) => {
+    await axios.delete(`${API_URL}/${id}`);
+    cargarItems();
+  };
+
+  const editarItem = (item: Item) => {
+    setNombre(item.nombre);
+    setEditandoId(item.id);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <Text style={styles.titulo}>Lista de compras NICOMILA</Text>
+  
+      <TextInput
+        style={styles.input}
+        placeholder="Nombre del item"
+        value={nombre}
+        onChangeText={setNombre}
+      />
+  
+      <Button title={editandoId ? "Actualizar" : "Agregar"} onPress={guardarItem} />
+  
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.itemFila}>
+            <Text>{item.nombre}</Text>
+            <View style={styles.botones}>
+              <TouchableOpacity onPress={() => editarItem(item)}>
+                <Text style={styles.botonEditar}>Editar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => eliminarItem(item.id)}>
+                <Text style={styles.botonEliminar}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      />
+  
+      {mostrarError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTexto}>{error}</Text>
+          <Button title="Cerrar" onPress={() => setMostrarError(false)} />
+        </View>
+      )}
+    </View>
   );
 }
 
+
+
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  container: { flex: 1, padding: 20, marginTop: 40 },
+  titulo: { fontSize: 22, marginBottom: 10 },
+  input: { borderWidth: 1, padding: 8, marginBottom: 10 },
+  itemFila: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 },
+  botones: { flexDirection: 'row', gap: 10 },
+  botonEditar: { color: 'blue', marginRight: 10 },
+  botonEliminar: { color: 'red' },
+  errorContainer: {
     position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: '#f8d7da',
+    padding: 16,
+    borderRadius: 8,
+    borderColor: '#f5c6cb',
+    borderWidth: 1,
+  },
+  errorTexto: {
+    color: '#721c24',
+    marginBottom: 8,
+    fontWeight: 'bold',
   },
 });
